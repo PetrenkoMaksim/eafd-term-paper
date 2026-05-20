@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Large/generated artifacts
+artifacts/*
+!artifacts/README.md
+!artifacts/.gitkeep
+
+# External checkouts can be large; keep only placeholders unless intentionally vendored.
+external/ptls-experiments/*
+external/turbo-stats/*
+!external/ptls-experiments/.gitkeep
+!external/turbo-stats/.gitkeep
+
+# Logs
+*.log
