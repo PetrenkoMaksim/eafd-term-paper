@@ -1,0 +1,61 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+# configs/
+feature_agent/prompts.py
+
+# C extensions
+*.so
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints
+
+# Data, results, models, and output files
+*.parquet
+*.csv
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.npz
+*.npy
+
+# VSCode files
+.vscode/
+
+# PyCharm files
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.venv
+env/
+venv/
+ENV/
+
+# CatBoost files
+catboost_info/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*.txt
+
+# Interpretation/metrics output
+*.csv
+
+# Data and statistics outputs
+statistics/
+data/
+best_embs/
+outputs/
+

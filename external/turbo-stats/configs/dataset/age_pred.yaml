@@ -1,0 +1,13 @@
+# Column names
+col_id: 'client_id'
+col_target: 'age_bin'
+
+# Data paths
+transactions_path: '/home/jovyan/sakhno/turbo-stats/data/age_pred/transactions.csv'
+test_ids_path: '/home/jovyan/sakhno/turbo-stats/data/age_pred/test_ids.csv'
+target_path: '/home/jovyan/sakhno/turbo-stats/data/age_pred/target.csv'
+baseline_features_path: '/home/jovyan/sakhno/turbo-stats/embeddings/age_pred/coles.pickle'
+
+# Main metric
+main_metric: sklearn.metrics.accuracy_score
+

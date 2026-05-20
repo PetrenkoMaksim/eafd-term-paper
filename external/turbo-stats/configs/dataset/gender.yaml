@@ -1,0 +1,12 @@
+# Column names
+col_id: 'customer_id'
+col_target: 'gender'
+
+# Data paths
+transactions_path: '/home/jovyan/sakhno/turbo-stats/data/gender/transactions.csv'
+test_ids_path: '/home/jovyan/sakhno/turbo-stats/data/gender/test_ids.csv'
+target_path: '/home/jovyan/sakhno/turbo-stats/data/gender/target.csv'
+baseline_features_path: '/home/jovyan/sakhno/turbo-stats/embeddings/gender/coles.pickle'
+
+# Main metric
+main_metric: sklearn.metrics.roc_auc_score

@@ -1,0 +1,12 @@
+# Column names
+col_id: 'cl_id'
+col_target: 'churn'
+
+# Data paths
+transactions_path: '/home/jovyan/sakhno/turbo-stats/data/rosbank/transactions.csv'
+test_ids_path: '/home/jovyan/sakhno/turbo-stats/data/rosbank/test_ids.csv'
+target_path: '/home/jovyan/sakhno/turbo-stats/data/rosbank/target.csv'
+baseline_features_path: '/home/jovyan/sakhno/turbo-stats/embeddings/rosbank/coles.pickle'
+
+# Main metric
+main_metric: sklearn.metrics.roc_auc_score

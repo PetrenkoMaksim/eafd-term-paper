@@ -1,0 +1,64 @@
+defaults:
+  - dataset: gender
+  - _self_
+
+# Agent configuration
+agent:
+  type: vllm  # vllm, openai, openrouter
+  
+  # vLLM specific settings
+  vllm:
+    model_path: openai/gpt-oss-120b
+    num_gpus: 8
+    dtype: bfloat16
+    max_tokens: 16000
+  
+  # OpenAI specific settings
+  openai:
+    model: gpt-4o
+    api_key: null  # Uses OPENAI_API_KEY env var if null
+    base_url: null
+    max_tokens: 16000
+  
+  # OpenRouter specific settings
+  openrouter:
+    model: mistralai/devstral-2512:free
+    api_key: null  # Uses OPENROUTER_API_KEY env var if null
+    max_tokens: 16000
+  
+  # Proxy settings (shared by OpenAI and OpenRouter)
+  proxy:
+    url: null
+    use_proxy: true
+
+# Training configuration
+training:
+  iterations: 7
+  n_tries: 7
+  temperature: 0.3
+  test_size: 0.3
+  reflection: true
+  context_window: 100
+  seed: ${seed_everywhere}
+  cols_budget: 512
+  output_dir: /home/jovyan/sakhno/turbo-stats/outputs/
+  mode: performance
+
+# Model configuration
+model:
+  _target_: catboost.CatBoostClassifier
+  logging_level: Silent
+  allow_writing_files: false
+  depth: 7
+  learning_rate: 0.03
+  l2_leaf_reg: 3
+  iterations: 1000
+  random_state: ${seed_everywhere}
+
+# Logging
+logging:
+  level: INFO
+  log_file: feature_agent.log
+
+seed_everywhere: 42
+
