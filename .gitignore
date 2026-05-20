@@ -1,14 +1,17 @@
 artifacts/*
 !artifacts/README.md
+artifacts/*.tar.gz
 
 external/ptls-experiments/scenario_rosbank/data/
 external/ptls-experiments/scenario_rosbank/models/
+external/ptls-experiments/scenario_rosbank/logs/
 external/ptls-experiments/scenario_rosbank/lightning_logs/
 external/ptls-experiments/scenario_rosbank/results/
 
 external/turbo-stats/data/
 external/turbo-stats/embeddings/
 external/turbo-stats/outputs/
+external/turbo-stats/logs/
 
 *.csv
 *.parquet
@@ -17,5 +20,9 @@ external/turbo-stats/outputs/
 *.pt
 *.pth
 *.ckpt
-*.tar.gz
+
 .env
+hf_cache/
+vllm_cache/
+__pycache__/
+.DS_Store

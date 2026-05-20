@@ -1,0 +1,560 @@
+PROMPT / CONTEXT FOR CONTINUING THE EAFD TERM PAPER WORKFLOW
+
+You are helping Maksim Petrenko with his term paper based on the article:
+
+- Paper: https://arxiv.org/abs/2603.15713
+- Topic: Embedding-Aware Feature Discovery / EAFD for event sequences.
+- Core goal: reproduce/adapt the original EAFD pipeline for a term paper.
+- Original EAFD-style repo was sent to Maksim as a zip and is being used locally as:
+  /workspace/eafd-term-paper/external/turbo-stats
+- PTLS experiments repo for data + embeddings:
+  https://github.com/pytorch-lifestream/ptls-experiments
+- PyTorch-Lifestream library repo:
+  https://github.com/pytorch-lifestream/pytorch-lifestream
+
+MAIN IDEA OF THE PAPER / PROJECT
+
+The EAFD pipeline does NOT train event-sequence embeddings itself. It expects precomputed embeddings as input.
+
+There are two separate stages:
+
+Stage A:
+  raw event data -> PTLS preprocessing -> train CoLES/MeLES embeddings -> export data/embeddings into EAFD format
+
+Stage B:
+  original EAFD repo uses:
+    transactions.csv
+    target.csv
+    test_ids.csv
+    embeddings/coles.pickle
+  then runs LLM-based feature generation with gpt-oss-20b or API and evaluates generated features with CatBoost.
+
+Important distinction:
+  - gpt-oss-20b / gpt-oss-120b is ONLY the LLM feature-generation agent.
+  - It is NOT the event-sequence embedding model.
+  - CoLES/MeLES embeddings are trained separately with PTLS.
+
+HARDWARE / GPU PLAN
+
+Maksim does not have a local GPU and rents clean GPU machines each time.
+
+Recommended GPU:
+  - For gpt-oss-20b + vLLM: single A100 is enough.
+  - A100 40GB should work if context is reduced.
+  - A100 80GB is safer.
+  - Do NOT use default gpt-oss-120b config unless using multi-GPU large setup.
+  - Avoid 24GB cards for first serious run.
+
+Original repo default config:
+  agent:
+    type: vllm
+    vllm:
+      model_path: openai/gpt-oss-120b
+      num_gpus: 8
+      dtype: bfloat16
+      max_tokens: 16000
+
+Term paper config should use:
+  agent:
+    type: vllm
+    vllm:
+      model_path: openai/gpt-oss-20b
+      num_gpus: 1
+      dtype: bfloat16
+      max_tokens: 2048 or 4096
+
+Also patch in original repo:
+  external/turbo-stats/feature_agent/vllm_agent.py
+
+Change:
+  max_model_len=100000
+
+to:
+  max_model_len=16384
+
+Later, once stable, maybe:
+  max_model_len=32768
+
+CURRENT SSH / MACHINE LOGIN
+
+Current server login command used by Maksim:
+
+  ssh -p 40228 root@50.217.254.161 -L 8080:localhost:8080
+
+To copy files from server to Mac, use from LOCAL MAC TERMINAL, not inside SSH:
+
+  scp -P 40228 root@50.217.254.161:/path/to/file ~/Downloads/
+
+Example log download:
+
+  scp -P 40228 root@50.217.254.161:/workspace/eafd-term-paper/external/ptls-experiments/scenario_rosbank/logs/make_dataset_debug.log ~/Downloads/
+
+Recommended to use tmux on server:
+
+  tmux new -s eafd
+  tmux attach -t eafd
+
+PROJECT LAYOUT
+
+Working directory on server:
+
+  /workspace/eafd-term-paper
+
+Target structure:
+
+  eafd-term-paper/
+  ├── scripts/
+  │   ├── 00_bootstrap_server.sh
+  │   ├── 01_setup_ptls_env.sh
+  │   ├── 02_prepare_rosbank_ptls.sh
+  │   ├── 03_train_rosbank_embeddings.sh
+  │   ├── 04_export_rosbank_to_eafd.py
+  │   ├── 05_setup_eafd_env.sh
+  │   ├── 06_run_eafd_smoke.sh
+  │   ├── 07_run_eafd_full.sh
+  │   └── 08_sync_artifacts.sh
+  ├── external/
+  │   ├── ptls-experiments/
+  │   ├── pytorch-lifestream/
+  │   └── turbo-stats/
+  ├── artifacts/
+  └── notes/
+
+Git should store:
+  - scripts
+  - configs
+  - notes
+  - patches
+  - README
+
+Git should NOT store:
+  - raw CSV
+  - parquet
+  - pickle embeddings
+  - checkpoints
+  - vLLM/HF cache
+  - large outputs
+
+Large artifacts should be saved in cloud storage / rclone / Google Drive, for example:
+
+  eafd-term-paper/
+  ├── artifacts/
+  │   ├── rosbank_raw_v1.tar.gz
+  │   ├── rosbank_ptls_prepared_v1.tar.gz
+  │   ├── rosbank_coles_embeddings_v1.tar.gz
+  │   └── rosbank_eafd_ready_v1.tar.gz
+  └── runs/
+      ├── smoke/
+      └── full/
+
+IMPORTANT: Once rosbank_eafd_ready_v1.tar.gz is created, future rented machines do NOT need to repeat Stage A.
+
+STAGE A DETAILS: DATA + EMBEDDINGS
+
+Stage A uses:
+
+  /workspace/eafd-term-paper/external/ptls-experiments/scenario_rosbank
+
+The PTLS repo is:
+
+  https://github.com/pytorch-lifestream/ptls-experiments
+
+Rosbank data comes from the PTLS Rosbank scenario. Their scripts download train/test data from Hugging Face dataset dllllb/rosbank-churn.
+
+Important issue encountered:
+  - The downloaded files looked like train.csv and test.csv, but were actually gzip-compressed binary files.
+  - In vim they looked like garbage characters.
+  - Fix was:
+      mv data/train.csv data/train.csv.gz
+      mv data/test.csv data/test.csv.gz
+      gzip -d data/train.csv.gz
+      gzip -d data/test.csv.gz
+  - After this, head -5 data/train.csv should show readable CSV columns.
+
+PTLS preprocessing target outputs:
+
+  data/train_trx.parquet/
+  data/test_trx.parquet/
+  data/test_ids.csv
+
+CURRENT STATUS AS OF THIS CONTEXT FILE:
+  Maksim successfully got:
+    data/train_trx.parquet/
+    data/test_trx.parquet/
+    data/test_ids.csv
+
+So raw -> parquet preprocessing is DONE.
+
+Spark/PySpark issues solved:
+  - Needed to create/use a Python env at:
+      /workspace/venvs/ptls
+  - Needed ptls installed from pytorch-lifestream.
+  - Needed Spark to see ptls.
+  - Needed LOCAL_DIRS set, not unset, because Spark threw:
+      Yarn Local dirs can't be empty
+  - Working Spark-related env vars:
+
+      source /workspace/venvs/ptls/bin/activate
+
+      mkdir -p /workspace/spark-tmp/yarn-local /workspace/tmp
+      chmod -R 777 /workspace/spark-tmp /workspace/tmp
+
+      export LOCAL_DIRS=/workspace/spark-tmp/yarn-local
+      export SPARK_LOCAL_DIRS=/workspace/spark-tmp
+      export TMPDIR=/workspace/tmp
+      export SPARK_LOCAL_IP=127.0.0.1
+
+      export PYSPARK_PYTHON=/workspace/venvs/ptls/bin/python
+      export PYSPARK_DRIVER_PYTHON=/workspace/venvs/ptls/bin/python
+
+Manual Spark command that produced parquet outputs:
+
+  cd /workspace/eafd-term-paper/external/ptls-experiments/scenario_rosbank
+  source /workspace/venvs/ptls/bin/activate
+
+  spark-submit \
+    --master "local[8]" \
+    --conf spark.local.dir=/workspace/spark-tmp \
+    --conf spark.driver.extraJavaOptions="-Djava.io.tmpdir=/workspace/tmp" \
+    --conf spark.executor.extraJavaOptions="-Djava.io.tmpdir=/workspace/tmp" \
+    --driver-memory 16G \
+    make_dataset.py \
+    --data_path data/ \
+    --col_client_id "cl_id" \
+    --cols_event_time "TRDATETIME" \
+    --cols_category "mcc" "channel_type" "currency" "trx_category" \
+    --cols_log_norm "amount" \
+    --col_target "target_flag" "target_sum" \
+    --output_train_path "data/train_trx.parquet" \
+    --output_test_path "data/test_trx.parquet" \
+    --output_test_ids_path "data/test_ids.csv"
+
+After preprocessing, check:
+
+  ls -lh data
+  ls data/train_trx.parquet
+  ls data/test_trx.parquet
+  ls -lh data/test_ids.csv
+
+NEXT STAGE A STEP: TRAIN EMBEDDINGS
+
+Do NOT proceed to EAFD Stage B before training embeddings.
+
+Go to:
+
+  cd /workspace/eafd-term-paper/external/ptls-experiments/scenario_rosbank
+  source /workspace/venvs/ptls/bin/activate
+
+Check CUDA:
+
+  python - <<'PY'
+  import torch
+  print(torch.__version__)
+  print(torch.cuda.is_available())
+  if torch.cuda.is_available():
+      print(torch.cuda.get_device_name(0))
+  PY
+
+Run 1-epoch smoke test:
+
+  export CUDA_VISIBLE_DEVICES=0
+  mkdir -p models results
+
+  python -m ptls.pl_train_module \
+    --config-dir conf \
+    --config-name mles_params \
+    trainer.gpus=1 \
+    trainer.max_epochs=1 \
+    model_path=models/mles_model_smoke.p
+
+If this works, run real training:
+
+  python -m ptls.pl_train_module \
+    --config-dir conf \
+    --config-name mles_params \
+    trainer.gpus=1 \
+    trainer.max_epochs=60 \
+    model_path=models/mles_model.p
+
+Monitor GPU:
+
+  watch -n 2 nvidia-smi
+
+After training, run inference:
+
+  python -m ptls.pl_inference \
+    --config-dir conf \
+    --config-name mles_params \
+    model_path=models/mles_model.p \
+    embed_file_name=mles_embeddings
+
+Expected result:
+  data/mles_embeddings.pickle
+or similar pickle file in:
+  /workspace/eafd-term-paper/external/ptls-experiments/scenario_rosbank/data
+
+PTLS config details:
+  - scenario_rosbank/conf/mles_params.yaml
+  - uses ptls.frames.coles.CoLESModule
+  - RNN/LSTM sequence encoder, hidden_size likely 1024
+  - trainer.gpus=1
+  - max_epochs=60 by default
+  - output embed file name: mles_embeddings
+
+EXPORT TO ORIGINAL EAFD FORMAT
+
+Original EAFD / turbo-stats repo expects:
+
+  external/turbo-stats/data/rosbank/transactions.csv
+  external/turbo-stats/data/rosbank/target.csv
+  external/turbo-stats/data/rosbank/test_ids.csv
+  external/turbo-stats/embeddings/rosbank/coles.pickle
+
+Important:
+  - EAFD repo config for Rosbank may say col_target: churn
+  - PTLS Rosbank target column is target_flag
+  - Therefore EAFD commands must override:
+      dataset.col_target=target_flag
+
+Create / use script:
+
+  /workspace/eafd-term-paper/scripts/04_export_rosbank_to_eafd.py
+
+Suggested script behavior:
+  - Reads:
+      external/ptls-experiments/scenario_rosbank/data/train.csv
+      external/ptls-experiments/scenario_rosbank/data/test_ids.csv
+      external/ptls-experiments/scenario_rosbank/data/mles_embeddings.pickle
+  - Writes:
+      external/turbo-stats/data/rosbank/transactions.csv
+      external/turbo-stats/data/rosbank/target.csv
+      external/turbo-stats/data/rosbank/test_ids.csv
+      external/turbo-stats/embeddings/rosbank/coles.pickle
+  - target.csv should contain:
+      cl_id, target_flag
+  - transactions.csv should NOT contain target_flag or target_sum to avoid leakage.
+  - coles.pickle should contain:
+      cl_id, emb_0, emb_1, ...
+
+Run:
+
+  cd /workspace/eafd-term-paper
+  python scripts/04_export_rosbank_to_eafd.py
+
+Check:
+
+  tree external/turbo-stats/data/rosbank
+  tree external/turbo-stats/embeddings/rosbank
+
+Expected:
+
+  external/turbo-stats/data/rosbank/
+  ├── target.csv
+  ├── test_ids.csv
+  └── transactions.csv
+
+  external/turbo-stats/embeddings/rosbank/
+  └── coles.pickle
+
+SAVE PREPARED ARTIFACT
+
+After exporting:
+
+  cd /workspace/eafd-term-paper
+  mkdir -p artifacts
+
+  tar -czf artifacts/rosbank_eafd_ready_v1.tar.gz \
+    -C external/turbo-stats \
+    data/rosbank embeddings/rosbank
+
+Check:
+
+  ls -lh artifacts/rosbank_eafd_ready_v1.tar.gz
+
+This archive is the key reusable artifact. Upload it to cloud storage / Google Drive / rclone. On future rented machines, download this artifact and skip Stage A.
+
+STAGE B: ORIGINAL EAFD PIPELINE
+
+Stage B starts after:
+  - data/rosbank/transactions.csv exists
+  - data/rosbank/target.csv exists
+  - data/rosbank/test_ids.csv exists
+  - embeddings/rosbank/coles.pickle exists
+
+Set up separate EAFD/vLLM env:
+
+  cd /workspace/eafd-term-paper
+
+  python3 -m venv /workspace/venvs/eafd
+  source /workspace/venvs/eafd/bin/activate
+
+  python -m pip install --upgrade pip setuptools wheel
+
+  pip install pandas numpy scipy scikit-learn catboost matplotlib tqdm \
+    hydra-core omegaconf openai httpx pyarrow ipykernel
+
+  pip install -U vllm --torch-backend=auto
+
+Check:
+
+  python - <<'PY'
+  import torch
+  print("torch:", torch.__version__)
+  print("cuda:", torch.cuda.is_available())
+  if torch.cuda.is_available():
+      print(torch.cuda.get_device_name(0))
+
+  import vllm
+  print("vllm:", vllm.__version__)
+  PY
+
+Patch EAFD repo:
+
+  cd /workspace/eafd-term-paper
+
+  python - <<'PY'
+  from pathlib import Path
+
+  p = Path("external/turbo-stats/feature_agent/vllm_agent.py")
+  s = p.read_text()
+  s = s.replace("max_model_len=100000", "max_model_len=16384")
+  p.write_text(s)
+  print("patched", p)
+  PY
+
+EAFD smoke run:
+
+  cd /workspace/eafd-term-paper/external/turbo-stats
+  source /workspace/venvs/eafd/bin/activate
+
+  export CUDA_VISIBLE_DEVICES=0
+  export HF_HOME=/workspace/hf_cache
+  export TRANSFORMERS_CACHE=/workspace/hf_cache
+  export VLLM_WORKER_MULTIPROC_METHOD=spawn
+
+  mkdir -p outputs logs
+
+  python feature_agent/main.py \
+    dataset=rosbank \
+    agent.type=vllm \
+    agent.vllm.model_path=openai/gpt-oss-20b \
+    agent.vllm.num_gpus=1 \
+    agent.vllm.dtype=bfloat16 \
+    agent.vllm.max_tokens=2048 \
+    training.iterations=1 \
+    training.n_tries=1 \
+    training.reflection=true \
+    training.context_window=5 \
+    training.cols_budget=256 \
+    training.output_dir="$PWD/outputs" \
+    model.iterations=100 \
+    dataset.col_target=target_flag \
+    dataset.transactions_path="$PWD/data/rosbank/transactions.csv" \
+    dataset.test_ids_path="$PWD/data/rosbank/test_ids.csv" \
+    dataset.target_path="$PWD/data/rosbank/target.csv" \
+    dataset.baseline_features_path="$PWD/embeddings/rosbank/coles.pickle" \
+    2>&1 | tee logs/eafd_smoke.log
+
+If smoke works, run full experiment:
+
+  RUN_NAME="rosbank_gptoss20b_iter5_seed42_$(date +%Y%m%d_%H%M%S)"
+
+  python feature_agent/main.py \
+    dataset=rosbank \
+    agent.type=vllm \
+    agent.vllm.model_path=openai/gpt-oss-20b \
+    agent.vllm.num_gpus=1 \
+    agent.vllm.dtype=bfloat16 \
+    agent.vllm.max_tokens=4096 \
+    training.iterations=5 \
+    training.n_tries=2 \
+    training.reflection=true \
+    training.context_window=20 \
+    training.cols_budget=512 \
+    training.output_dir="$PWD/outputs/$RUN_NAME" \
+    training.seed=42 \
+    seed_everywhere=42 \
+    model.iterations=1000 \
+    dataset.col_target=target_flag \
+    dataset.transactions_path="$PWD/data/rosbank/transactions.csv" \
+    dataset.test_ids_path="$PWD/data/rosbank/test_ids.csv" \
+    dataset.target_path="$PWD/data/rosbank/target.csv" \
+    dataset.baseline_features_path="$PWD/embeddings/rosbank/coles.pickle" \
+    2>&1 | tee "logs/${RUN_NAME}.log"
+
+LOGS / FILE TRANSFER
+
+To download logs from server to Mac:
+
+  scp -P 40228 root@50.217.254.161:/workspace/eafd-term-paper/external/ptls-experiments/scenario_rosbank/logs/make_dataset_debug.log ~/Downloads/
+
+or for EAFD logs:
+
+  scp -P 40228 root@50.217.254.161:/workspace/eafd-term-paper/external/turbo-stats/logs/eafd_smoke.log ~/Downloads/
+
+To download whole logs dir:
+
+  scp -P 40228 -r root@50.217.254.161:/workspace/eafd-term-paper/external/turbo-stats/logs ~/Downloads/
+
+KNOWN ISSUES SOLVED SO FAR
+
+1. external/ptls-experiments missing:
+   Fixed by cloning:
+     git clone https://github.com/pytorch-lifestream/ptls-experiments.git external/ptls-experiments
+
+2. PTLS raw files downloaded as .csv but were actually gzip:
+   Fixed by:
+     mv data/train.csv data/train.csv.gz
+     mv data/test.csv data/test.csv.gz
+     gzip -d data/train.csv.gz
+     gzip -d data/test.csv.gz
+
+3. spark-submit not found:
+   Fixed by installing pyspark and using env:
+     /workspace/venvs/ptls
+
+4. No module named ptls:
+   Fixed by installing pytorch-lifestream into the env.
+   Editable source install route:
+     cd /workspace/eafd-term-paper/external
+     git clone https://github.com/pytorch-lifestream/pytorch-lifestream.git
+     cd pytorch-lifestream
+     python3 -m pip install -e .
+
+5. Yarn Local dirs can't be empty:
+   Fixed by setting LOCAL_DIRS explicitly:
+     export LOCAL_DIRS=/workspace/spark-tmp/yarn-local
+
+6. Spark finished without outputs:
+   Cause was compressed gzip files incorrectly named as .csv.
+   Fixed by renaming/decompressing.
+
+WHAT TO DO NEXT FROM CURRENT STATE
+
+Current state:
+  - In scenario_rosbank, the files exist:
+      data/train_trx.parquet/
+      data/test_trx.parquet/
+      data/test_ids.csv
+
+Immediate next command:
+  cd /workspace/eafd-term-paper/external/ptls-experiments/scenario_rosbank
+  source /workspace/venvs/ptls/bin/activate
+
+  python - <<'PY'
+  import torch
+  print(torch.__version__)
+  print(torch.cuda.is_available())
+  if torch.cuda.is_available():
+      print(torch.cuda.get_device_name(0))
+  PY
+
+Then:
+  - Run 1-epoch PTLS mles_params smoke training.
+  - If works, run 60-epoch training.
+  - Run ptls.pl_inference to get mles_embeddings.pickle.
+  - Export to EAFD format.
+  - Save rosbank_eafd_ready_v1.tar.gz.
+  - Set up EAFD/vLLM env.
+  - Patch max_model_len.
+  - Run EAFD smoke with gpt-oss-20b.
